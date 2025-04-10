@@ -1,0 +1,82 @@
+echo "# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Données et fichiers volumineux
+data/
+*.parquet
+*.h5
+*.hdf5
+*.csv
+*.txt
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.db
+*.sqlite
+*.sqlite3
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Environnement virtuel et packages
+venv/
+env/
+.venv/
+.eggs/
+*.egg
+
+# Tests et coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+build/
+dist/
+*.egg
+*.egg-info/
+
+# Logs
+*.log
+logs/
+
+# Configuration sensible
+*.env
+*.key
+*.pem
+*.crt
+*.key
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Dossiers spécifiques
+live/
+database/
+models/
+
+# Fichiers temporaires
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Fichiers de système
+.DS_Store
+Thumbs.db" > .gitignore
