@@ -27,8 +27,15 @@ class MorningstarConfig:
     
     # Colonnes de données
     base_columns = ['open', 'high', 'low', 'close', 'volume']
-    technical_columns = ['rsi', 'macd', 'macd_signal', 'macd_hist', 'bb_upper', 'bb_middle', 'bb_lower', 'volume_ma', 'volume_anomaly']
-    social_columns = []  # Désactivé temporairement
+    technical_columns = [
+        'rsi', 'macd', 'macd_signal', 'macd_hist', 
+        'bb_upper', 'bb_middle', 'bb_lower', 
+        'volume_ma', 'volume_anomaly'
+    ]
+    # Features sociales (désactivées car non présentes dans le dataset)
+    social_columns = []
+    # Features de corrélation (désactivées car non présentes dans le dataset) 
+    correlation_columns = []
     
     # Paramètres de risque
     risk_level: RiskLevel = RiskLevel.MODERE
