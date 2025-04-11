@@ -60,11 +60,10 @@ class ExchangeDataManager:
                 print(f"Retrying in {wait_time}s...")
                 await asyncio.sleep(wait_time)
             except Exception as e:
-                print(f"Unexpected error loading markets: {e}")
-                # Depending on the desired behavior, you might want to re-raise the exception
-            # or handle it (e.g., by setting a flag indicating markets failed to load)
-            raise # Re-raise the exception to make the failure explicit
-
+                 print(f"Unexpected error loading markets: {e}")
+                 # Re-raise the original exception 'e' instead of a bare 'raise'
+                 raise e
+    # Correction de l'indentation ici (aligné avec load_markets_async)
     async def load_data(self, pair: str, timeframe: str,
                       start_date: Optional[str] = None,
                       end_date: Optional[str] = None,
