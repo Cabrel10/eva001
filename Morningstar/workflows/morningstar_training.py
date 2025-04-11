@@ -1,5 +1,6 @@
 import tensorflow as tf
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+# Correction de l'import selon les standards Keras
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping 
 from Morningstar.model.architecture.morningstar_model import MorningstarTradingModel
 from Morningstar.configs.morningstar_config import MorningstarConfig, TradingStyle
 from Morningstar.utils.data_manager import ExchangeDataManager
@@ -131,7 +132,8 @@ class MorningstarTrainingWorkflow:
     def train_model(self, train_data: tuple, val_data: tuple): # Accepte tuples (seq, labels)
         """Entraînement du modèle avec les données préparées"""
         train_seq, train_labels = train_data
-        val_seq, val_labels = val_data # Utiliser les données de validation splittées
+        # Remplacer les variables non utilisées par _
+        _, _ = val_data # Utiliser les données de validation splittées via val_data directement dans fit
         
         # S'assurer que input_shape correspond au nombre final de features
         input_shape = train_seq.shape[1:] 
