@@ -321,6 +321,34 @@ def add_technical_indicators(df):
     # Volume indicators
     df['volume_ma'] = df['volume'].rolling(20).mean()
     df['volume_anomaly'] = volume_anomality(df)
+    # ATR (Average True Range)
+    df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
+    
+    # Stochastic Oscillator
+    stoch = ta.momentum.StochasticOscillator(df['high'], df['low'], df['close'], window=14, smooth_window=3)
+    df['stoch_k'] = stoch.stoch()
+    df['stoch_d'] = stoch.stoch_signal()
+    
+    # OBV (On-Balance Volume)
+    df['obv'] = ta.volume.on_balance_volume(df['close'], df['volume'])
+    
+    # SuperTrend (using the existing class)
+    st = SuperTrend(high=df['high'], low=df['low'], close=df['close'], atr_window=10, atr_multi=3)
+    df['supertrend_dir'] = st.super_trend_direction().astype(int) # True=1, False=0
+    df['supertrend_lower'] = st.super_trend_lower()
+    df['supertrend_upper'] = st.super_trend_upper()
+    # Forward fill SuperTrend bands as they contain NaNs based on direction
+    df['supertrend_lower'] = df['supertrend_lower'].ffill()
+    df['supertrend_upper'] = df['supertrend_upper'].ffill()
+    
+    # --- Existing Volume Indicators ---
+    df['volume_ma'] = df['volume'].rolling(20).mean()
+    df['volume_anomaly'] = volume_anomality(df) # Ensure this function is called after volume_ma if needed
+    
+    # Clean up potential NaNs introduced by indicators
+    # It's often better to handle NaNs globally during the final cleaning step,
+    # but we can do a basic ffill here for indicators that rely on previous values.
+    df = df.fillna(method='ffill') 
     
     return df
 

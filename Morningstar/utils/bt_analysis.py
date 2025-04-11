@@ -1,4 +1,25 @@
 import pandas as pd
+from dataclasses import dataclass
+
+@dataclass
+class BacktestAnalyzer:
+    """Analyse complète des résultats de backtest"""
+    
+    def analyze(self, trades: pd.DataFrame, days: pd.DataFrame) -> dict:
+        """Analyse principale avec les métriques clés"""
+        return get_metrics(trades, days)
+        
+    def full_report(self, trades: pd.DataFrame, days: pd.DataFrame):
+        """Rapport détaillé avec toutes les statistiques"""
+        return simple_backtest_analysis(
+            trades,
+            days,
+            general_info=True,
+            trades_info=True,
+            days_info=True,
+            long_short_info=True
+        )
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import datetime

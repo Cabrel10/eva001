@@ -1,5 +1,9 @@
 import pytest
 import asyncio
+import pandas as pd # Import pandas
+import tweepy # Import tweepy
+import asyncpraw # Import asyncpraw
+from datetime import datetime, timedelta # Import datetime stuff
 from unittest.mock import AsyncMock, MagicMock, patch
 from Morningstar.utils.social_scraper import SocialMediaScraper
 
@@ -90,6 +94,7 @@ async def test_reddit_sentiment_analysis(mock_scraper):
     assert result['positive'] == 0
     assert result['neutral'] == 0
     # La structure actuelle ne retourne pas le score moyen
+    # assert result['score'] == 42 # Assertion incorrecte supprimée
 
 def test_sentiment_analysis_logic(mock_scraper):
     """Test la logique d'analyse de sentiment"""

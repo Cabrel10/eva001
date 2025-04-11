@@ -12,10 +12,12 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from typing import List, Dict
+import asyncio # Ensure asyncio is imported
 from Morningstar.utils.data_manager import ExchangeDataManager
 from Morningstar.utils.social_scraper import SocialMediaScraper as SocialDataScraper
 from Morningstar.utils.custom_indicators import add_technical_indicators
 import pytz
+from sklearn.preprocessing import RobustScaler # Import RobustScaler
 
 class FullDatasetBuilder:
     def __init__(self):
@@ -259,16 +261,45 @@ class FullDatasetBuilder:
         return pd.concat(merged_data)
 
     def _clean_and_normalize(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Nettoyage et normalisation des données"""
-        # Normalisation zero mapping pour les données sociales
-        social_cols = [c for c in df.columns if 'twitter' in c or 'reddit' in c]
-        for col in social_cols:
-            df[col] = df[col].fillna(0)  # Zero mapping pour valeurs manquantes
-            df[col] = (df[col] - df[col].mean()) / df[col].std()  # Standardisation
+        """Nettoyage et normalisation améliorés des données"""
+        
+        # 1. Forward fill général pour combler les NaN (OHLCV, indicateurs, social si possible)
+        # Exclure la colonne 'pair' si elle existe
+        cols_to_fill = df.columns.difference(['pair'])
+        df[cols_to_fill] = df[cols_to_fill].fillna(method='ffill')
+        
+        # 2. Identifier les colonnes sociales et de volume/indicateurs pour la mise à l'échelle
+        social_cols = [c for c in df.columns if 'twitter' in c or 'reddit' in c or 'github' in c]
+        # Identifier d'autres colonnes numériques à normaliser (exclure OHLC pour éviter de fausser les prix bruts si besoin)
+        # Pour l'instant, normalisons toutes les features ajoutées (indicateurs, social)
+        indicator_cols = df.columns.difference(['open', 'high', 'low', 'close', 'volume', 'pair'] + social_cols).tolist()
+        cols_to_scale = social_cols + indicator_cols
+
+        # 3. Remplir les NaN restants dans les colonnes sociales avec 0 (Zero mapping)
+        df[social_cols] = df[social_cols].fillna(0)
+        
+        # 4. Appliquer RobustScaler aux colonnes sélectionnées
+        # Vérifier qu'il reste des colonnes à scaler et qu'elles existent dans le df
+        valid_cols_to_scale = [col for col in cols_to_scale if col in df.columns]
+        if valid_cols_to_scale:
+            # Gérer les colonnes potentiellement non numériques ou entièrement NaN
+            numeric_cols_to_scale = df[valid_cols_to_scale].select_dtypes(include=np.number).columns.tolist()
             
-        # Forward fill pour les données OHLCV
-        ohlcv_cols = ['open', 'high', 'low', 'close', 'volume']
-        df[ohlcv_cols] = df[ohlcv_cols].fillna(method='ffill')
+            # Supprimer les colonnes avec une variance nulle (constantes) avant de scaler
+            cols_with_variance = [col for col in numeric_cols_to_scale if df[col].nunique() > 1]
+
+            if cols_with_variance:
+                scaler = RobustScaler()
+                # Fit and transform sur les données valides (non-NaN après ffill/fillna(0))
+                df[cols_with_variance] = scaler.fit_transform(df[cols_with_variance])
+            else:
+                print("Avertissement : Aucune colonne avec variance trouvée pour la mise à l'échelle.")
+        else:
+             print("Avertissement : Aucune colonne valide identifiée pour la mise à l'échelle.")
+
+        # 5. Supprimer les lignes initiales qui pourraient encore contenir des NaN 
+        # (dues aux fenêtres des indicateurs/ffill au début)
+        df = df.dropna() 
         
         return df
 
