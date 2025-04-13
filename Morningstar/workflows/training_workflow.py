@@ -3,8 +3,11 @@ from tensorflow.keras import layers
 import numpy as np
 from numpy.random import Generator, PCG64
 import pandas as pd
-import numpy as np
 from pathlib import Path
+
+# Vérification des versions
+assert tf.__version__ == '2.12.0', f"TensorFlow 2.12.0 requis, version actuelle: {tf.__version__}"
+assert np.__version__ == '1.23.5', f"NumPy 1.23.5 requis, version actuelle: {np.__version__}"
 
 class TrainingWorkflow:
     def __init__(self, config):
@@ -27,7 +30,10 @@ class TrainingWorkflow:
     def _prepare_dataset(self, data):
         features = (data[self.config.features] - data[self.config.features].mean()) / data[self.config.features].std()
         features = features.values.astype(np.float32)
-        labels = np.random.uniform(-0.1, 0.1, size=len(data)).astype(np.float32)
+        
+        # Génération des labels avec le nouveau générateur aléatoire
+        rng = Generator(PCG64())
+        labels = rng.uniform(-0.1, 0.1, size=len(data)).astype(np.float32)
         
         def generator():
             for i in range(len(features) - self.config.time_window):

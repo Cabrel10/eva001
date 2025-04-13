@@ -1,5 +1,9 @@
 import tensorflow as tf
-from tensorflow.keras import layers
+import tensorflow as tf
+from tensorflow.keras import layers, models
+
+# Vérification version TensorFlow
+assert tf.__version__ == '2.12.0', f"Version TensorFlow requise: 2.12.0, actuelle: {tf.__version__}"
 from Morningstar.configs.tf_config import TFConfig
 
 class BaseTradingModel:
