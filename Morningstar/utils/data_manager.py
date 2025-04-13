@@ -22,8 +22,19 @@ class ExchangeDataManager:
         exchange_class = getattr(ccxt, exchange_name)
         # Instantiate the async exchange class with increased timeout
         self.exchange = exchange_class({
-            'timeout': 30000, # 30 seconds timeout for requests
-        }) 
+            'timeout': 60000, # 60 seconds timeout
+            'enableRateLimit': True,
+            'options': {
+                'adjustForTimeDifference': True,
+                'recvWindow': 60000,
+            }
+        })
+        # Configuration spécifique pour Bitget
+        if exchange_name == 'bitget':
+            self.exchange.options = {
+                'defaultType': 'spot', # Éviter les produits dérivés restreints
+                'adjustForTimeDifference': True
+            }
         
         # Check capability on the async instance
         if not self.exchange.has['fetchOHLCV']:

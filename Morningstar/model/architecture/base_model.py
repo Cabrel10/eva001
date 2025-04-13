@@ -26,16 +26,19 @@ class BaseTradingModel:
         # Couches Denses
         x = layers.Dense(64, activation='relu')(x)
         x = layers.Dropout(0.3)(x)
-        outputs = layers.Dense(1)(x)  # Prédiction de prix
+        # Normalisation finale et sortie
+        x = layers.BatchNormalization()(x)
+        outputs = layers.Dense(1)(x)  # Sortie linéaire non bornée
         
         return tf.keras.Model(inputs=inputs, outputs=outputs)
 
     def compile_model(self):
-        """Configure l'entraînement du modèle"""
+        """Configure l'entraînement pour la régression robuste"""
         self.model.compile(
-            optimizer=self.config['optimizer'],
-            loss=self.config['loss'],
-            metrics=self.config['metrics']
+            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+            loss='huber',  # Moins sensible aux outliers
+            metrics=['mae', 'mse'],
+            weighted_metrics=['mae']
         )
 
     def train(self, dataset, epochs=10):

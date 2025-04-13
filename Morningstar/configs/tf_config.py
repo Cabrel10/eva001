@@ -61,11 +61,14 @@ class TFConfig:
     @staticmethod
     def setup_gpu():
         """Configure les paramètres GPU"""
-        gpus = tf.config.list_physical_devices('GPU')
-        if gpus:
-            try:
+        try:
+            gpus = tf.config.list_physical_devices('GPU')
+            if gpus:
                 for gpu in gpus:
                     tf.config.experimental.set_memory_growth(gpu, True)
-                print(f"GPU configuré: {gpus}")
-            except RuntimeError as e:
-                print(f"Erreur configuration GPU: {e}")
+                print(f"✅ GPU configuré: {gpus}")
+            else:
+                print("ℹ️ Aucun GPU détecté - Utilisation du CPU")
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la configuration GPU: {str(e)}")
+            print("ℹ️ Le système continuera avec le CPU")
