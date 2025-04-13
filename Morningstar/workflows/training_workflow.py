@@ -24,7 +24,7 @@ class TrainingWorkflow:
         x = layers.LSTM(64)(x)
         outputs = layers.Dense(1)(x)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
-        model.compile(optimizer='adam', loss='mse', run_eagerly=True)
+        model.compile(optimizer='adam', loss='mse', run_eagerly=False)  # Désactive eager execution
         return model
 
     def _prepare_dataset(self, data):
