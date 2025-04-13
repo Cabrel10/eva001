@@ -65,6 +65,7 @@ logs/
 
 # Notebooks
 .ipynb_checkpoints/
+!notebooks/*.ipynb
 
 # Dossiers spécifiques
 live/
