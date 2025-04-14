@@ -52,6 +52,11 @@ class SimpleDatasetBuilder:
         # 4. Nettoyage et normalisation
         full_data = self._clean_and_normalize(full_data)
         
+        # Ajout des colonnes sociales manquantes pour correspondre à la structure demandée
+        for col in ["commits", "stars", "forks", "issues_opened", "issues_closed"]:
+            if col not in full_data.columns:
+                full_data[col] = None
+
         return full_data
 
     # Added async keyword
