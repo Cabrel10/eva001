@@ -1,0 +1,48 @@
+# Fichier requirements.txt pour Morningstar V2
+
+# Bibliothèques Fondamentales
+python>=3.9
+pandas
+numpy
+pyyaml
+python-dotenv
+scikit-learn
+
+# Indicateurs Techniques
+# Choisissez l'une ou l'autre, ou les deux si nécessaire.
+# TA-Lib nécessite une installation système préalable.
+# ta
+# TA-Lib
+
+# Frameworks de Deep Learning (Choisissez celui utilisé)
+# tensorflow>=2.8
+# torch>=1.10
+# keras # Si utilisé avec TF backend
+
+# Optimisation (Optionnel)
+# optuna
+
+# APIs et Connecteurs Externes
+ccxt>=1.90 # Pour les exchanges
+# openai>=0.27 # Pour l'API OpenAI (LLM)
+# transformers # Si utilisation de modèles Hugging Face localement
+# tweepy # Pour Twitter API v2
+# newsapi-python # Pour NewsAPI
+
+# Outils de Backtesting et Visualisation (Optionnel - choisir selon besoin)
+# backtrader
+# zipline-reloaded # Note: zipline peut être complexe à installer
+# vectorbt # Alternative moderne pour backtesting vectorisé
+matplotlib
+seaborn
+# plotly # Pour dashboards interactifs
+# streamlit # Pour dashboards rapides
+# dash # Pour dashboards web complexes
+
+# Utilitaires Divers
+pytest # Pour les tests
+# logging # Inclus dans Python stdlib, mais peut être listé pour clarté
+
+# Note: Commentez/Décommentez les lignes selon les bibliothèques
+# réellement utilisées dans votre implémentation.
+# Assurez-vous d'installer les dépendances système si nécessaire (ex: TA-Lib).

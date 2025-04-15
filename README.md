@@ -1,107 +1,145 @@
-# Morningstar Trading System
+# Morningstar V2 - Robot de Trading Crypto Hybride Avancé (Spécifications)
 
-## Architecture
-```mermaid
-graph TD
-    A[Data Manager] -->|Fournit des données| B(Base Model CNN-LSTM)
-    B -->|Prédictions| C[Backtest Engine / Trading Workflow]
-    C -->|Métriques| D[Analyse / Optimisation]
-    D -- Optional --> B
-```
+## Introduction du Projet
 
-## Fonctionnalités
-- Chargement de données optimisé pour TensorFlow
-- Modèle CNN-LSTM intégré
-- Workflow d'entraînement complet
-- Backtesting intégré
-- Déploiement automatisé
+**Contexte et Objectifs :**
+Morningstar V2 est un système de trading algorithmique avancé conçu pour opérer sur les marchés des cryptomonnaies. Son objectif principal est de générer des signaux de trading optimisés en combinant :
+1.  **Analyse Technique Quantitative**: Utilisation de modèles de deep learning (CNN, LSTM) pour identifier les patterns dans les données de marché (OHLCV, indicateurs).
+2.  **Analyse Contextuelle Qualitative**: Intégration de données alternatives (sentiment des réseaux sociaux, news, données on-chain) et supervision par un Large Language Model (LLM) pour évaluer la pertinence des signaux techniques dans le contexte actuel du marché.
+3.  **Optimisation Continue**: Utilisation d'algorithmes d'optimisation (génétiques, Optuna) pour affiner les hyperparamètres du modèle et potentiellement les stratégies de trading.
+4.  **Gestion de Risque Adaptative**: Intégration de têtes de prédiction dédiées à la volatilité, aux régimes de marché et à la suggestion dynamique de Stop-Loss/Take-Profit.
 
-## Utilisation
-```bash
-# Installation
-conda env create -f environment.yml
-conda activate trading_env
+**Valeur Ajoutée :**
+Le système vise à dépasser les limites des approches purement techniques en ajoutant une couche d'intelligence contextuelle via le LLM, permettant une meilleure adaptation aux conditions changeantes du marché et une gestion des risques plus proactive. L'architecture modulaire facilite l'évolution et la maintenance.
 
-# Entraînement
-python -m Morningstar.workflows.training_workflow
+---
 
-# Déploiement
-bash scripts/deploy.sh
+## Fonctionnalités Clés
 
-# Tests
-pytest tests/ -v
-```
+*   **Préparation et Enrichissement des Données**: Pipelines ETL robustes pour collecter, nettoyer, aligner et enrichir les données de marché avec des indicateurs techniques et des données contextuelles (sentiment, news...).
+*   **Modèle `EnhancedHybridModel`**: Architecture hybride multi-modale et multi-tâches combinant CNN, LSTM et potentiellement des embeddings textuels/contextuels.
+    *   **Têtes de Prédiction Multiples**:
+        *   Signal de Trading (Classification 5 classes + score de confiance).
+        *   Prédiction de Volatilité (Classification/Régression).
+        *   Détection de Régime de Marché (Classification).
+        *   Suggestion de SL/TP Dynamiques (Régression/RL).
+*   **Optimisation Intégrée**: Modules pour l'optimisation des hyperparamètres et potentiellement des stratégies.
+*   **Workflow de Trading Orchestré**: Processus centralisé gérant le flux complet : récupération des données, préparation des features, prédiction du modèle, supervision par LLM, décision et exécution d'ordre.
+*   **Backtesting et Simulation Avancés**: Capacités de backtesting multi-stratégies (spot, futures, options) avec différents profils de risque, incluant la simulation des coûts de transaction et du slippage.
+*   **Exécution Live Multi-Exchange**: Connexion et exécution d'ordres en temps réel sur les principaux exchanges (Bitget, KuCoin, Binance via `ccxt`).
+*   **Monitoring et Supervision LLM en Temps Réel**: Dashboard de suivi des performances, des positions et des alertes. Intégration du LLM pour l'analyse contextuelle continue, la validation des signaux et les recommandations de gestion.
 
-## Déploiement sur Hugging Face
+---
 
-Le projet peut être facilement partagé et versionné sur [Hugging Face Hub](https://huggingface.co/).
+## Instructions d’Installation
 
-1.  **Installation (si nécessaire) :**
+1.  **Prérequis Système :**
+    *   Python 3.9+
+    *   Git
+    *   (Optionnel mais recommandé) Gestionnaire d'environnement virtuel (venv, conda)
+    *   (Si TA-Lib est utilisé) Installation des dépendances système de TA-Lib (voir documentation TA-Lib).
+
+2.  **Cloner le Dépôt :**
     ```bash
-    pip install huggingface_hub
+    git clone <url_du_depot>
+    cd Morningstar
     ```
-2.  **Connexion :** Authentifiez-vous auprès du Hub. Vous aurez besoin d'un token d'accès (avec permissions d'écriture) généré depuis [vos paramètres Hugging Face](https://huggingface.co/settings/tokens).
+
+3.  **Créer et Activer l'Environnement Virtuel :**
     ```bash
-    huggingface-cli login
-    ```
-3.  **Création du dépôt :** Créez un nouveau dépôt sur le Hub (via l'interface web ou par programmation).
-4.  **Upload du projet :** Poussez le contenu de votre projet local vers le dépôt distant (adaptez `VotreUsername/VotreRepo` et les `ignore_patterns` si nécessaire).
-    ```python
-    # Exemple d'utilisation via Python
-    from huggingface_hub import upload_folder
-
-    upload_folder(
-        repo_id="VotreUsername/VotreRepo",
-        folder_path=".", # Dossier courant
-        commit_message="Mise à jour du projet",
-        ignore_patterns=["data/*", ".git*", "__pycache__/*", "*.egg-info/*", "logs/*"]
-    )
+    python -m venv venv
+    source venv/bin/activate  # Linux/macOS
+    # .\venv\Scripts\activate  # Windows
     ```
 
-## Entraînement sur Google Colab
+4.  **Installer les Dépendances :**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    *(Note : Assurez-vous que `requirements.txt` est à jour avec toutes les dépendances listées dans les spécifications).*
 
-Un notebook est fourni pour faciliter l'entraînement sur Google Colab, profitant ainsi des GPU gratuits.
+5.  **Configuration des Clés API et Secrets :**
+    *   Créez une copie du fichier `config/secrets.env.example` (qui doit être créé comme modèle) et nommez-la `config/secrets.env`.
+    *   Remplissez `config/secrets.env` avec vos clés API personnelles pour les exchanges (Bitget, KuCoin, Binance), les sources de données (NewsAPI, Twitter si utilisé) et le LLM (OpenAI).
+    *   **IMPORTANT :** Ce fichier `secrets.env` **ne doit jamais être versionné** (il est inclus dans `.gitignore`).
 
-1.  **Prérequis :**
-    *   Téléchargez votre fichier de données d'entraînement sur votre Google Drive.
-    *   Placez-le dans un dossier (par exemple `Colab Data`) et nommez-le `morningstar_data.parquet`. Le chemin attendu par défaut est `/content/drive/MyDrive/Colab Data/morningstar_data.parquet`.
-2.  **Ouvrir le Notebook :** Ouvrez `notebooks/training_on_colab.ipynb` dans Google Colab.
-3.  **Exécuter les cellules :** Suivez les étapes dans le notebook pour :
-    *   Installer les dépendances.
-    *   Cloner le dépôt (depuis GitHub ou Hugging Face).
-    *   Monter Google Drive.
-    *   Lancer l'entraînement.
-    *   Sauvegarder le modèle entraîné (`morningstar_model.h5`) sur votre Google Drive.
+6.  **Configuration des Paramètres Généraux :**
+    *   Ouvrez le fichier `config/config.yaml`.
+    *   Ajustez les paramètres selon vos besoins :
+        *   Exchanges à utiliser.
+        *   Paires de trading cibles.
+        *   Paramètres de stratégie (profil de risque, taille de position par défaut...).
+        *   Seuils de décision.
+        *   Paramètres du modèle (fenêtre temporelle, etc.).
+        *   Configuration du logging.
+        *   Paramètres spécifiques au LLM (modèle à utiliser...).
 
-## Structure des Fichiers
-```
-Morningstar/
-├── configs/          # Configurations
-├── data/             # Données brutes
-├── model/            # Modèles de ML
-├── tests/            # Tests unitaires et d'intégration
-├── utils/            # Utilitaires
-└── workflows/        # Workflows principaux
-```
+7.  **Initialisation (si nécessaire) :**
+    *   Certains modules pourraient nécessiter une initialisation (ex: création de base de données, téléchargement initial de données historiques). Suivez les instructions spécifiques si fournies.
 
-## Exemple d'Utilisation
-```python
-from Morningstar.workflows import TrainingWorkflow
+---
 
-workflow = TrainingWorkflow(pair="ETH/USDT", timeframe="4h")
-history = workflow.run(epochs=50)
-```
+## Utilisation et Déploiement
 
-## Requirements (extrait de requirements.txt)
-- Python 3.10+ (implicite par les dépendances)
-- ccxt==4.1.91
-- pandas==2.1.4
-- numpy~=1.23.2 
-- tensorflow==2.12.0
-- pandas-ta==0.3.14b0
-- tweepy==4.14.0
-- asyncpraw==7.7.0
-- textblob==0.17.1
-- pytest==7.3.1
-- pyarrow==14.0.1
-- (Voir `requirements.txt` pour la liste complète)
+*   **Préparation des Données :**
+    *   Exécutez les scripts nécessaires dans `data/pipelines/` pour télécharger et traiter les données historiques requises.
+    *   Exemple : `python data/pipelines/fetch_ohlcv.py --exchange binance --pair BTC/USDT --start_date 2020-01-01`
+
+*   **Entraînement du Modèle :**
+    ```bash
+    python model/training/training_script.py --config config/config.yaml
+    ```
+    *   Le script utilisera la configuration spécifiée et les données préparées dans `data/processed/`. Le modèle entraîné sera sauvegardé dans `models/`.
+
+*   **Backtesting / Simulation :**
+    *   Le backtesting peut être intégré au workflow principal ou via un script dédié (à définir).
+    *   Exemple (si intégré au workflow en mode backtest) :
+        ```bash
+        python workflows/trading_workflow.py --config config/config.yaml --mode backtest --start_date YYYY-MM-DD --end_date YYYY-MM-DD
+        ```
+
+*   **Exécution du Workflow de Trading (Live) :**
+    ```bash
+    python workflows/trading_workflow.py --config config/config.yaml --mode live
+    ```
+    *   Le workflow s'exécutera en continu (ou selon la fréquence définie), récupérant les données, générant des signaux, interagissant avec le LLM et potentiellement passant des ordres via `live/executor.py`.
+
+*   **Monitoring :**
+    *   Lancez le dashboard de monitoring (si implémenté, ex: avec Streamlit) :
+        ```bash
+        streamlit run live/monitoring.py
+        ```
+    *   Consultez les fichiers de logs dans le dossier `logs/`.
+
+*   **Exécution des Tests :**
+    ```bash
+    pytest tests/
+    ```
+
+---
+
+## Documentation Détaillée
+
+*   **Structure du Projet**: `docs/FILE_STRUCTURE.md`
+*   **Checklist d'Implémentation**: `docs/checklist_implementation.md`
+*   **Guide des Prompts LLM**: `docs/PROMPTS_GUIDE.md`
+*   **Spécifications des Modules**: Fichiers `.md` dédiés dans chaque sous-dossier (`model/architecture/enhanced_hybrid_model.md`, `utils/api_manager.md`, etc.).
+
+---
+
+## Contributions et Roadmap
+
+*   **Contributions**: Les contributions sont encouragées. Veuillez suivre les conventions de codage, écrire des tests et mettre à jour la documentation pertinente.
+*   **Roadmap**:
+    *   Implémentation complète de toutes les têtes de prédiction.
+    *   Intégration de plus de sources de données alternatives.
+    *   Amélioration des stratégies d'optimisation.
+    *   Développement d'un dashboard de monitoring plus interactif.
+    *   Exploration de techniques de Reinforcement Learning pour la décision et le SL/TP.
+    *   Support de nouveaux exchanges.
+
+---
+
+## Licence
+
+(À définir - ex: MIT, Apache 2.0) - Créer un fichier `LICENSE`.
