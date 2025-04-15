@@ -53,11 +53,15 @@ Cette documentation décrit la structure de dossiers et de fichiers adoptée pou
 │
 ├── utils/
 │   ├── __init__.py                # Init package utils
-│   ├── data_preparation.py        # Fonctions de préparation/nettoyage données + indicateurs
+│   ├── data_preparation.py        # Chargement, nettoyage de base, orchestration pipeline
+│   ├── feature_engineering.py     # Calcul indicateurs, intégration données alt, scaling
+│   ├── labeling.py                # Génération des labels/cibles pour l'entraînement
 │   ├── api_manager.py             # Gestion des connexions API (exchanges, news, social, LLM)
 │   ├── logging.py                 # Configuration du logging
 │   ├── helpers.py                 # Fonctions utilitaires diverses
-│   ├── data_preparation.md      # Documentation/Spécification de la préparation des données
+│   ├── data_preparation.md      # Documentation/Spécification chargement & nettoyage
+│   ├── feature_engineering.md     # Documentation/Spécification feature engineering & scaling
+│   ├── labeling.md                # Documentation/Spécification génération labels
 │   └── api_manager.md           # Documentation/Spécification du gestionnaire d'API
 │
 ├── tests/

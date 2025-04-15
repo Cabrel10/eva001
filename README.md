@@ -45,11 +45,11 @@ Le système vise à dépasser les limites des approches purement techniques en a
     cd Morningstar
     ```
 
-3.  **Créer et Activer l'Environnement Virtuel :**
+3.  **Créer et Activer l'Environnement Virtuel (avec Conda) :**
     ```bash
-    python -m venv venv
-    source venv/bin/activate  # Linux/macOS
-    # .\venv\Scripts\activate  # Windows
+    # Assurez-vous d'avoir Conda (Miniconda ou Anaconda) installé
+    conda create --name trading_env python=3.9 -y  # Ou la version de Python souhaitée
+    conda activate trading_env
     ```
 
 4.  **Installer les Dépendances :**
@@ -82,8 +82,13 @@ Le système vise à dépasser les limites des approches purement techniques en a
 ## Utilisation et Déploiement
 
 *   **Préparation des Données :**
-    *   Exécutez les scripts nécessaires dans `data/pipelines/` pour télécharger et traiter les données historiques requises.
-    *   Exemple : `python data/pipelines/fetch_ohlcv.py --exchange binance --pair BTC/USDT --start_date 2020-01-01`
+    *   **Pipeline Complet :** Pour exécuter l'ensemble du pipeline de préparation des données (chargement, nettoyage, feature engineering, labeling) sur un fichier brut et générer le dataset final :
+        ```bash
+        python data/pipelines/data_pipeline.py --input data/raw/VOTRE_FICHIER_BRUT.csv --output data/processed/final_dataset.parquet
+        ```
+        *(Remplacez `VOTRE_FICHIER_BRUT.csv` par le nom de votre fichier de données brutes, par exemple `btc_usdt_1h.csv`)*
+    *   **(Optionnel) Étapes Individuelles :** Si des scripts pour des étapes spécifiques existent (ex: téléchargement initial) :
+        *   Exemple : `python data/pipelines/fetch_ohlcv.py --exchange binance --pair BTC/USDT --start_date 2020-01-01`
 
 *   **Entraînement du Modèle :**
     ```bash
@@ -115,6 +120,15 @@ Le système vise à dépasser les limites des approches purement techniques en a
     ```bash
     pytest tests/
     ```
+
+*   **Analyse Exploratoire des Labels :**
+    *   Pour valider la pertinence et la distribution des labels générés par le pipeline, vous pouvez exécuter le notebook d'analyse :
+        ```bash
+        # Assurez-vous d'avoir installé les dépendances pour l'environnement explore_env
+        # (pandas, matplotlib, seaborn, scipy, jupyter)
+        jupyter notebook notebooks/explore_labels.ipynb
+        ```
+    *   Ce notebook charge `data/processed/final_dataset.parquet` et fournit des visualisations et statistiques sur les différents labels (`signal_trading`, `market_regime`, `level_sl`, `level_tp`, etc.).
 
 ---
 

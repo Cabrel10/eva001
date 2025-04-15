@@ -30,18 +30,29 @@ Fournir une liste détaillée de tâches et de vérifications pour s’assurer q
 
 ## ✅ Phase 2 : Collecte et Préparation des Données
 
-### 📊 Gestion des Données (`data/`, `utils/data_preparation.py`)
+### 📊 Chargement & Nettoyage (`data/`, `utils/data_preparation.py`)
 - [ ] Définir et documenter la structure des données attendues dans `data/raw/` et `data/processed/`.
-- [ ] Implémenter les scripts ETL de base dans `data/pipelines/` (ex: `fetch_ohlcv.py`, `fetch_social_sentiment.py`).
-- [ ] Implémenter les fonctions dans `utils/data_preparation.py` pour :
-    - [ ] Chargement/Sauvegarde des données (CSV, Parquet...).
-    - [ ] Nettoyage (valeurs manquantes, outliers...).
-    - [ ] Calcul d'indicateurs techniques (via TA-Lib/ta).
-    - [ ] Alignement temporel des différentes sources de données.
-    - [ ] Enrichissement avec données contextuelles (sentiment, news...).
-    - [ ] Normalisation/Scaling (StandardScaler, MinMaxScaler...).
-- [ ] Documenter les méthodes dans `utils/data_preparation.md`.
-- [ ] Écrire les tests unitaires pour `utils/data_preparation.py` dans `tests/test_utils.py`.
+- [ ] Implémenter les scripts ETL de base dans `data/pipelines/` (ex: `fetch_ohlcv.py`, `fetch_social_sentiment.py`) utilisant `utils/data_preparation.py`.
+- [ ] Implémenter les fonctions `load_raw_data` et `clean_data` dans `utils/data_preparation.py`.
+- [ ] Documenter ces méthodes dans `utils/data_preparation.md`.
+- [ ] Écrire les tests unitaires pour `load_raw_data` et `clean_data` dans `tests/test_utils.py`.
+
+### ✨ Feature Engineering (`utils/feature_engineering.py`)
+- [ ] Implémenter la fonction `apply_technical_indicators`.
+- [ ] Implémenter la fonction `integrate_alternative_data`.
+- [ ] Implémenter la fonction `engineer_domain_features`.
+- [ ] Implémenter la fonction `apply_scaling` (incluant gestion sauvegarde/chargement scaler).
+- [ ] Documenter ces méthodes dans `utils/feature_engineering.md`.
+- [ ] Écrire les tests unitaires pour ces fonctions dans `tests/test_utils.py` (ou `tests/test_feature_engineering.py` si séparé).
+
+### 🎯 Génération de Labels (`utils/labeling.py`)
+- [ ] Implémenter la fonction `generate_labels` et ses helpers internes pour les différents types de tâches (classification, régression...).
+- [ ] Documenter ces méthodes dans `utils/labeling.md`.
+- [ ] Écrire les tests unitaires pour `generate_labels` dans `tests/test_utils.py` (ou `tests/test_labeling.py` si séparé).
+
+### ⚙️ Orchestration Pipeline (`utils/data_preparation.py`)
+- [ ] Implémenter la fonction orchestratrice `build_prepared_dataset` dans `utils/data_preparation.py` qui appelle les fonctions de nettoyage, feature engineering et labeling.
+- [ ] S'assurer que le pipeline complet est testable et configurable.
 
 ### 🔗 Gestion des APIs (`utils/api_manager.py`)
 - [ ] Implémenter les fonctions dans `utils/api_manager.py` pour :
