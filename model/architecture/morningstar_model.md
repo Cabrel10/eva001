@@ -1,103 +1,109 @@
-# Spécification : Wrapper MorningstarModel
+# Documentation de l'Interface du Modèle Morningstar (`MorningstarModel`)
 
-**Objectif :** Définir le rôle, l'interface et le comportement attendu du wrapper `MorningstarModel`, qui sert de point d'entrée principal pour interagir avec le modèle `EnhancedHybridModel` depuis les workflows.
+## Rôle
 
----
+La classe `MorningstarModel` sert de **wrapper** (interface) pour le modèle d'architecture complexe `MorningstarHybridModel` (défini dans `enhanced_hybrid_model.py`). Elle simplifie l'utilisation du modèle dans le workflow de trading en fournissant des méthodes standardisées pour l'initialisation, la prédiction, le chargement/sauvegarde des poids, etc.
 
-## 1. Vue d'ensemble
+L'architecture sous-jacente (`MorningstarHybridModel`) combine des données techniques et des embeddings LLM via un module de fusion, puis utilise plusieurs têtes de prédiction spécialisées. Voir `enhanced_hybrid_model.md` pour les détails de l'architecture interne.
 
-`MorningstarModel` est une classe Python qui encapsule le modèle `EnhancedHybridModel` (implémenté en Keras/TensorFlow ou PyTorch). Son but est de simplifier l'utilisation du modèle en :
+## Interface Publique (`MorningstarModel`)
 
-*   Gérant le chargement du modèle entraîné et de ses dépendances (ex: scalers, encodeurs).
-*   Fournissant une interface claire et stable pour la prédiction, indépendamment des détails internes de `EnhancedHybridModel`.
-*   Abstrayant potentiellement la complexité de la préparation des entrées spécifiques au framework sous-jacent.
+### Méthodes Principales
 
----
+1.  **`__init__(model_config=None)`**
+    - Initialise le wrapper. Prend un dictionnaire de configuration optionnel pour paramétrer le `MorningstarHybridModel` sous-jacent.
 
-## 2. Interface Principale (API Exposée)
+2.  **`initialize_model()`**
+    - Construit l'architecture du modèle `MorningstarHybridModel` en utilisant la configuration fournie. Doit être appelée avant `predict` ou `load_weights` si le modèle n'est pas déjà initialisé.
 
-La classe `MorningstarModel` devrait exposer au minimum les méthodes suivantes :
+3.  **`predict(technical_data, llm_embeddings)`**
+    - **Entrées**:
+        - `technical_data`: Array numpy de shape `[batch_size, num_technical_features]` (ex: `[10, 38]`)
+        - `llm_embeddings`: Array numpy de shape `[batch_size, llm_embedding_dim]` (ex: `[10, 768]`)
+    - **Sorties**: Un dictionnaire indiquant le statut de l'opération et le résultat (ou un message d'erreur).
+      - **En cas de succès :**
+        ```python
+        {
+            'status': 'success',
+            'result': {
+                'signal': np.ndarray[batch_size, 5],           # Probabilités (softmax) pour Strong Sell, Sell, Hold, Buy, Strong Buy
+                'volatility_quantiles': np.ndarray[batch_size, 3],  # Prédiction des quantiles (ex: 0.1, 0.5, 0.9)
+                'volatility_regime': np.ndarray[batch_size, 3],     # Probabilités (softmax) pour les régimes de volatilité (ex: Low, Medium, High)
+                'market_regime': np.ndarray[batch_size, 4],    # Probabilités (softmax) pour les régimes de marché (ex: Bullish, Bearish, Lateral, Volatile)
+                'sl_tp': np.ndarray[batch_size, 2]             # Valeurs prédites pour Stop Loss / Take Profit (placeholder RL)
+            }
+        }
+        ```
+      - **En cas d'erreur :**
+        ```python
+        {
+            'status': 'error',
+            'message': 'Description de l'erreur rencontrée (ex: shape incorrecte, modèle non initialisé...)'
+        }
+        ```
 
-*   **`__init__(self, model_path: str, config: dict)`**:
-    *   **Rôle**: Initialiser le wrapper.
-    *   **Arguments**:
-        *   `model_path`: Chemin vers le dossier contenant le modèle `EnhancedHybridModel` sauvegardé (ex: format `SavedModel` de TF ou `.pt` de PyTorch) et les fichiers associés (scalers, encodeurs...).
-        *   `config`: Dictionnaire de configuration (chargé depuis `config/config.yaml`) contenant les paramètres nécessaires (ex: têtes actives, noms des features attendues).
-    *   **Comportement**:
-        *   Charge le modèle `EnhancedHybridModel` depuis `model_path`.
-        *   Charge les objets de prétraitement nécessaires (scalers, encodeurs) sauvegardés lors de l'entraînement.
-        *   Stocke la configuration pertinente.
+4.  **`save_weights(filepath)`**
+    - Sauvegarde les poids du modèle entraîné au format HDF5 (`.h5`).
 
-*   **`predict(self, input_data: dict) -> dict`**:
-    *   **Rôle**: Effectuer une prédiction en utilisant le modèle chargé.
-    *   **Arguments**:
-        *   `input_data`: Un dictionnaire contenant les données d'entrée préparées et alignées temporellement. Les clés du dictionnaire doivent correspondre à ce qu'attend le `EnhancedHybridModel` (ex: `'technical_features'`, `'contextual_features'`). Les données doivent être dans un format compatible (ex: Numpy arrays, Tensors).
-    *   **Comportement**:
-        *   Applique le prétraitement nécessaire (scaling, encoding) aux données d'entrée en utilisant les objets chargés lors de l'`__init__`.
-        *   Formate les données pour correspondre aux shapes d'entrée attendues par `EnhancedHybridModel`.
-        *   Appelle la méthode de prédiction du modèle `EnhancedHybridModel` sous-jacent.
-        *   Formate potentiellement les sorties brutes du modèle (ex: logits) en un dictionnaire plus interprétable (ex: probabilités, classes prédites), tel que défini dans la spécification de `EnhancedHybridModel`.
-    *   **Retour**: Un dictionnaire contenant les prédictions des différentes têtes actives (ex: `{'signal_probs': ..., 'volatility_pred': ...}`).
+5.  **`load_weights(filepath)`**
+    - Charge les poids d'un modèle pré-entraîné depuis un fichier HDF5. Initialise le modèle si nécessaire avant le chargement.
 
-*   **(Optionnel) `load_model(cls, model_path: str, config: dict)`**:
-    *   **Rôle**: Méthode de classe alternative pour charger et retourner une instance de `MorningstarModel`. Peut être utile pour simplifier l'instanciation.
+6.  **`get_model_summary()`**
+    - Retourne un résumé textuel de l'architecture du modèle (`MorningstarHybridModel`). Utile pour le débogage.
 
----
+7.  **`prepare_for_inference()`**
+    - Applique des optimisations potentielles au modèle pour accélérer l'inférence (actuellement, effectue une recompilation simple). À appeler avant le déploiement en production.
 
-## 3. Gestion des Dépendances
+## Intégration avec le Workflow (`trading_workflow.py`)
 
-*   Le wrapper est responsable de charger et d'utiliser correctement les objets de prétraitement (scalers, encodeurs) qui ont été sauvegardés avec le modèle lors de l'entraînement (`model/training/training_script.py`). Ces objets sont essentiels pour assurer que les données d'inférence sont traitées de la même manière que les données d'entraînement.
-*   Le chemin vers ces dépendances doit être inclus ou déductible de `model_path`.
+Le `TradingWorkflow` utilise cette classe `MorningstarModel` pour interagir avec le modèle de prédiction :
 
----
+1.  Instanciation : `model_interface = MorningstarModel(config)`
+2.  Chargement des poids : `model_interface.load_weights('path/to/saved_model.h5')`
+3.  Préparation (optionnel mais recommandé) : `model_interface.prepare_for_inference()`
+4.  Prédiction sur de nouvelles données : `predictions = model_interface.predict(tech_data, llm_data)`
+5.  Utilisation des `predictions` (dictionnaire) pour la prise de décision.
 
-## 4. Interaction avec la Configuration
+## Tests Unitaires
 
-*   Le wrapper utilise le dictionnaire `config` pour connaître les paramètres importants, tels que :
-    *   Quelles têtes de prédiction sont actives (pour savoir quelles sorties retourner).
-    *   Les noms ou indices des features attendues en entrée.
-    *   Potentiellement des seuils de décision par défaut (bien que la logique de décision principale soit plutôt dans `workflows/trading_workflow.py`).
+Les tests vérifient:
 
----
+- La cohérence des shapes de sortie
+- La gestion des erreurs sur inputs invalides
+- La sérialisation/deserialisation des poids
+- La stabilité numérique des prédictions
 
-## 5. Exemple d'Utilisation (Pseudo-code dans le Workflow)
+Exemple de test:
 
 ```python
-# Dans workflows/trading_workflow.py
-
-from model.architecture.morningstar_model import MorningstarModel
-# ... autres imports ...
-
-# Charger la configuration
-config = load_config('config/config.yaml')
-model_config = config['model_settings'] # Section pertinente de la config
-model_directory = config['paths']['trained_model_dir']
-
-# Initialiser le wrapper
-try:
-    model_wrapper = MorningstarModel(model_path=model_directory, config=model_config)
-except Exception as e:
-    log.error(f"Erreur lors du chargement du modèle : {e}")
-    # Gérer l'erreur (ex: arrêter le workflow)
-
-# ... dans la boucle principale du workflow ...
-
-# Préparer les données d'entrée (via data_preparation et api_manager)
-input_features = prepare_input_data(...) # Doit retourner un dict
-
-# Obtenir les prédictions
-try:
-    predictions = model_wrapper.predict(input_features)
-    signal_probabilities = predictions.get('signal_probs')
-    volatility_prediction = predictions.get('volatility_pred')
-    # ... récupérer autres prédictions ...
-except Exception as e:
-    log.error(f"Erreur lors de la prédiction : {e}")
-    # Gérer l'erreur
-
-# Utiliser les prédictions pour la logique de décision...
+def test_predict_output_shapes():
+    # Utilise la configuration par défaut
+    model_wrapper = MorningstarModel() 
+    model_wrapper.initialize_model() # Important: Initialiser avant predict
+    
+    batch_size = 10
+    num_tech_features = model_wrapper.config['num_technical_features']
+    llm_dim = model_wrapper.config['llm_embedding_dim']
+    
+    technical = np.random.rand(batch_size, num_tech_features)
+    llm = np.random.rand(batch_size, llm_dim)
+    
+    preds = model_wrapper.predict(technical, llm)
+    
+    assert isinstance(preds, dict)
+    assert preds['signal'].shape == (batch_size, model_wrapper.config['num_signal_classes'])
+    assert preds['volatility_quantiles'].shape == (batch_size, 3) # Assumant 3 quantiles
+    assert preds['volatility_regime'].shape == (batch_size, model_wrapper.config['num_volatility_regimes'])
+    assert preds['market_regime'].shape == (batch_size, model_wrapper.config['num_market_regimes'])
+    assert preds['sl_tp'].shape == (batch_size, 2) # Assumant 2 valeurs SL/TP
 ```
 
----
+## Bonnes Pratiques
 
-Cette spécification guide l'implémentation de `model/architecture/morningstar_model.py`, en assurant une interface claire et cohérente pour l'utilisation du modèle complexe sous-jacent.
+1. Toujours appeler `prepare_for_inference()` avant de déployer
+2. Vérifier les shapes des inputs avant prédiction
+3. Monitorer les performances via les logs:
+
+```log
+INFO:MorningstarModel:Prédiction effectuée - temps: 45ms
+INFO:MorningstarModel:Volatilité détectée: HIGH (prob: 0.87)

@@ -1,119 +1,139 @@
-# Spécification : Modèle EnhancedHybridModel
+# Morningstar Hybrid Model - Documentation Technique
 
-**Objectif :** Définir l'architecture, les entrées, les sorties et le comportement attendu du modèle de deep learning principal `EnhancedHybridModel`.
+## Overview
+Modèle de deep learning hybride multi-tâches pour le trading algorithmique crypto, combinant:
+- Données techniques (38 features)
+- Enrichissement par LLM (embeddings)
+- Prédictions multiples:
+  - Signal de trading (5 classes)
+  - Volatilité (quantiles + régimes)
+  - Régime de marché (4 classes)
+  - Niveaux SL/TP (via RL)
 
----
+## Architecture
 
-## 1. Vue d'ensemble
-
-`EnhancedHybridModel` est un modèle Keras/TensorFlow (ou PyTorch) conçu pour le trading de cryptomonnaies. Il adopte une architecture hybride et multi-tâches pour intégrer diverses sources d'information et prédire plusieurs aspects pertinents du marché.
-
-*   **Type**: Hybride (CNN, LSTM, potentiellement Attention/Transformers) + Multi-Modal + Multi-Tâches.
-*   **Framework**: TensorFlow (ou PyTorch, à préciser lors de l'implémentation).
-
----
-
-## 2. Architecture Modulaire
-
-Le modèle est composé de plusieurs modules interconnectés :
-
-### 2.1. Modules d'Extraction de Caractéristiques
-
-*   **Module d'Extraction Temporelle (CNN/LSTM)**:
-    *   **Entrée**: Séquences de données OHLCV et indicateurs techniques normalisées (Shape: `(batch_size, time_window, num_technical_features)`).
-    *   **Architecture**: Combinaison de couches Convolutionnelles 1D (pour capturer les motifs locaux/spatiaux dans la fenêtre temporelle) suivies de couches LSTM ou GRU (pour modéliser les dépendances temporelles longues). Des couches de Dropout et BatchNormalization peuvent être ajoutées pour la régularisation.
-    *   **Sortie**: Vecteur de caractéristiques temporelles (Shape: `(batch_size, temporal_embedding_dim)`).
-
-*   **Module d'Extraction Contextuelle (NLP/Embedding)**:
-    *   **Entrée**: Données textuelles prétraitées (news, tweets) ou scores de sentiment dérivés. Peut aussi accepter d'autres données alternatives structurées (on-chain, économiques). (Shape variable selon le type d'entrée, ex: `(batch_size, sequence_length)` pour texte, `(batch_size, num_alternative_features)` pour structuré).
-    *   **Architecture**:
-        *   Pour le texte : Utilisation d'embeddings pré-entraînés (ex: Word2Vec, GloVe, BERT via `TFHub` ou `Transformers`) suivis potentiellement de couches RNN ou Attention pour obtenir une représentation contextuelle.
-        *   Pour les données structurées : Couches Dense.
-    *   **Sortie**: Vecteur de caractéristiques contextuelles/alternatives (Shape: `(batch_size, contextual_embedding_dim)`).
-
-### 2.2. Module de Fusion Multi-Modale
-
-*   **Entrée**: Les vecteurs de caractéristiques issus des modules d'extraction temporelle et contextuelle.
-*   **Architecture**: Mécanisme pour combiner les informations des différentes modalités. Options :
-    *   **Concaténation simple**: Concaténer les vecteurs de sortie.
-    *   **Attention pondérée**: Utiliser un mécanisme d'attention (ex: Additive Attention, Multi-Head Attention) pour pondérer l'importance relative de chaque modalité avant ou après concaténation.
-    *   **Couches Dense**: Appliquer des couches Dense sur les caractéristiques concaténées/pondérées.
-*   **Sortie**: Vecteur de caractéristiques fusionnées représentant l'état combiné du marché (Shape: `(batch_size, fused_embedding_dim)`).
-
-### 2.3. Têtes de Prédiction Multi-Tâches
-
-Chaque tête est une petite sous-architecture (généralement quelques couches Dense) prenant en entrée le vecteur de caractéristiques fusionnées et produisant une prédiction spécifique.
-
-*   **Tête 1: Signal de Trading**
-    *   **Objectif**: Prédire le signal de trading directionnel.
-    *   **Type de Sortie**: Classification (multi-classe).
-    *   **Architecture**: Couches Dense avec une couche finale ayant `N` neurones (ex: N=5 pour Achat Fort, Achat, Neutre, Vente, Vente Forte) et une activation `softmax`.
-    *   **Sortie**: Probabilités pour chaque classe de signal (Shape: `(batch_size, num_signal_classes)`). Un score de confiance peut être dérivé de ces probabilités (ex: probabilité max, différence entre probabilités...).
-    *   **Fonction de Perte**: Categorical Cross-Entropy.
-
-*   **Tête 2: Prédiction de Volatilité**
-    *   **Objectif**: Anticiper le niveau de volatilité futur proche.
-    *   **Type de Sortie**: Régression (prédire une valeur de volatilité, ex: ATR normalisé) OU Classification (prédire des niveaux : Basse, Moyenne, Haute).
-    *   **Architecture**: Couches Dense. Activation `linear` pour la régression, `softmax` pour la classification.
-    *   **Sortie**: Valeur de volatilité prédite (Shape: `(batch_size, 1)`) ou probabilités de classe (Shape: `(batch_size, num_volatility_classes)`).
-    *   **Fonction de Perte**: Mean Squared Error (MSE) pour la régression, Categorical Cross-Entropy pour la classification.
-
-*   **Tête 3: Détection de Régime de Marché**
-    *   **Objectif**: Identifier le régime dominant actuel (ex: Tendance Haussière, Tendance Baissière, Range/Consolidation).
-    *   **Type de Sortie**: Classification (multi-classe).
-    *   **Architecture**: Couches Dense avec une couche finale ayant `M` neurones (nombre de régimes) et une activation `softmax`.
-    *   **Sortie**: Probabilités pour chaque régime (Shape: `(batch_size, num_regime_classes)`).
-    *   **Fonction de Perte**: Categorical Cross-Entropy.
-
-*   **Tête 4: Suggestion de SL/TP Dynamiques**
-    *   **Objectif**: Suggérer des niveaux de Stop-Loss et Take-Profit adaptés aux conditions actuelles.
-    *   **Type de Sortie**: Régression (prédire les niveaux de prix SL et TP, ou des distances/multiples d'ATR).
-    *   **Architecture**: Couches Dense avec activation `linear`. Peut nécessiter une normalisation spécifique des cibles. L'approche par Reinforcement Learning (RL) est une alternative complexe mais potentiellement plus performante (à considérer pour une évolution future).
-    *   **Sortie**: Niveaux SL et TP prédits (Shape: `(batch_size, 2)`).
-    *   **Fonction de Perte**: MSE ou une perte personnalisée (ex: MAE).
-
----
-
-## 3. Entrées Attendues
-
-*   **Données Techniques**: DataFrame/Numpy array contenant OHLCV et indicateurs techniques, normalisés (ex: Z-score), sous forme de séquences temporelles.
-*   **Données Contextuelles/Alternatives**: Données textuelles tokenisées/embeddées, scores de sentiment, données on-chain structurées, etc., normalisées de manière appropriée.
-*   **Alignement Temporel**: Toutes les entrées doivent être correctement alignées dans le temps.
-
-Le `model/training/data_loader.py` est responsable de la préparation de ces entrées dans le format attendu par le modèle.
-
----
-
-## 4. Sorties Attendues
-
-Le modèle retourne un dictionnaire (ou une structure similaire) contenant les sorties de chaque tête de prédiction active.
-
-```python
-# Exemple de sortie attendue (pseudo-code)
-output = {
-    "signal_probs": tensor_signal_probabilities,      # Shape: (batch_size, num_signal_classes)
-    "volatility_pred": tensor_volatility_prediction, # Shape: (batch_size, 1 ou num_volatility_classes)
-    "regime_probs": tensor_regime_probabilities,    # Shape: (batch_size, num_regime_classes)
-    "sl_tp_pred": tensor_sl_tp_levels              # Shape: (batch_size, 2)
-}
+```mermaid
+graph TD
+    A[Input Technique] --> C[Fusion Module]
+    B[Input LLM] --> C
+    C --> D[Signal Head]
+    C --> E[Volatility Head]
+    C --> F[Market Regime Head]
+    C --> G[SL/TP Head]
+    D --> H[Strong Buy/Buy/Neutral/Sell/Strong Sell]
+    E --> I[Volatility Quantiles]
+    E --> J[Volatility Regime]
+    F --> K[Bullish/Bearish/Lateral/Volatile]
+    G --> L[SL/TP Values]
 ```
 
----
+## Prérequis Environnement
+- Python 3.x
+- TensorFlow 2.x
+- Doit être exécuté dans l'environnement conda `trading_env`:
+  ```bash
+  conda activate trading_env
+  ```
 
-## 5. Entraînement
+## Configuration
 
-*   **Fonction de Perte Combinée**: L'entraînement utilisera une fonction de perte combinée, somme pondérée des pertes de chaque tête active. Les poids peuvent être ajustés (hyperparamètre) pour équilibrer l'apprentissage des différentes tâches.
-    `total_loss = w1 * loss_signal + w2 * loss_volatility + w3 * loss_regime + w4 * loss_sl_tp`
-*   **Optimiseur**: Adam ou AdamW sont de bons choix par défaut.
-*   **Métriques**: Suivi des métriques spécifiques à chaque tâche (accuracy, MSE, MAE) en plus de la perte totale.
+```python
+model = MorningstarHybridModel(
+    num_technical_features=38,  # Nombre de features techniques
+    llm_embedding_dim=768,      # Dimension des embeddings LLM
+    num_signal_classes=5,       # Classes de signal
+    num_volatility_regimes=3,   # Régimes de volatilité
+    num_market_regimes=4        # Régimes de marché
+)
+```
 
----
+## Entrées/Sorties
 
-## 6. Flexibilité
+### Entrées
+- `technical_input`: Tensor de shape (batch_size, 38)
+  - Features techniques normalisées
+- `llm_input`: Tensor de shape (batch_size, 768)
+  - Embeddings LLM (ex: BERT, GPT)
 
-*   L'architecture doit permettre d'activer/désactiver facilement les différentes têtes de prédiction via la configuration (`config/config.yaml`).
-*   Le module d'extraction contextuelle doit pouvoir être désactivé si seules les données techniques sont utilisées.
+### Sorties (Liste plate retournée par `model.predict`)
+- `signal_output`: Tensor de shape (batch_size, 5), nom: `signal_output`
+  - Probabilités pour chaque classe de signal (Strong Sell, Sell, Hold, Buy, Strong Buy)
+- `volatility_quantiles`: Tensor de shape (batch_size, 3), nom: `volatility_quantiles`
+  - Prédiction des quantiles de volatilité (ex: 0.1, 0.5, 0.9)
+- `volatility_regime`: Tensor de shape (batch_size, 3), nom: `volatility_regime`
+  - Probabilités pour chaque régime de volatilité (ex: Low, Medium, High)
+- `market_regime_output`: Tensor de shape (batch_size, 4), nom: `market_regime_output`
+  - Probabilités pour chaque régime de marché (ex: Bullish, Bearish, Lateral, Volatile)
+- `sl_tp_output`: Tensor de shape (batch_size, 2), nom: `sl_tp_output`
+  - Valeurs prédites pour SL/TP (placeholder, sera affiné par RL)
 
----
+## Exemple d'Utilisation
 
-Cette spécification sert de guide pour l'implémentation de `model/architecture/enhanced_hybrid_model.py`. Les détails précis des couches, du nombre de neurones, des fonctions d'activation (autres que la couche finale) et des hyperparamètres seront déterminés lors de l'implémentation et de l'optimisation.
+```python
+from model.architecture.enhanced_hybrid_model import MorningstarHybridModel
+
+# Initialisation
+model_builder = MorningstarHybridModel()
+model = model_builder.build_model()
+
+# Compilation (les noms des sorties doivent correspondre à ceux définis dans build_model)
+model.compile(
+    optimizer='adam',
+    loss={
+        'signal_output': 'categorical_crossentropy',
+        'volatility_quantiles': 'quantile_loss', # Ou 'mse' si non spécifique
+        'volatility_regime': 'categorical_crossentropy',
+        'market_regime_output': 'categorical_crossentropy',
+        'sl_tp_output': 'mse' # Placeholder, sera adapté par RL
+    },
+    loss_weights={ # Optionnel: pondérer les différentes pertes
+        'signal_output': 1.0,
+        'volatility_quantiles': 0.5,
+        'volatility_regime': 0.5,
+        'market_regime_output': 0.8,
+        'sl_tp_output': 0.2 
+    },
+    metrics={
+        'signal_output': 'accuracy',
+        'volatility_regime': 'accuracy',
+        'market_regime_output': 'accuracy'
+    }
+)
+
+# Entraînement (la liste y doit correspondre à l'ordre des sorties dans build_model)
+model.fit(
+    x={'technical_input': technical_data, 'llm_input': llm_embeddings},
+    y={
+        'signal_output': signal_labels, 
+        'volatility_quantiles': volatility_quantile_targets, 
+        'volatility_regime': volatility_regime_labels,
+        'market_regime_output': market_regime_labels, 
+        'sl_tp_output': sl_tp_targets 
+    },
+    epochs=50,
+    batch_size=32
+)
+```
+
+## Hyperparamètres
+
+| Paramètre | Valeur Par Défaut | Description |
+|-----------|------------------|-------------|
+| Couche Technique | Dense(128) | Première couche de processing des features techniques |
+| Couche LLM | Dense(256) | Première couche de processing des embeddings |
+| Couche Fusion | Dense(512) | Couche après concaténation |
+| Dropout Technique | 0.3 | Taux de dropout pour les features |
+| Dropout LLM | 0.3 | Taux de dropout pour les embeddings |
+| Dropout Fusion | 0.4 | Taux de dropout après fusion |
+
+## Tests Unitaires
+Des tests doivent vérifier:
+1. Que le modèle accepte bien un input de 38 features
+2. Que toutes les sorties sont générées avec les bonnes dimensions
+3. Que les poids sont bien initialisés
+4. Que le forward pass fonctionne sans erreur
+
+## Prochaines Étapes
+- Intégration de la composante RL pour SL/TP
+- Optimisation des hyperparamètres
+- Tests de performance sur données réelles

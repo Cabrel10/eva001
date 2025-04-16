@@ -1,0 +1,34 @@
+# Configuration du modèle Morningstar
+model:
+  weights_path: "model/morningstar_weights.h5"  # Chemin vers les poids du modèle entraîné
+  num_technical_features: 38                   # Nombre de features techniques
+  llm_embedding_dim: 768                       # Dimension des embeddings LLM
+  inference_batch_size: 32                     # Taille de batch pour l'inférence
+
+# Configuration de l'API de trading  
+api:
+  base_url: "https://api.trading.example.com/v1"
+  timeout: 10                                  # Timeout en secondes
+  retry_attempts: 3                            # Nombre de tentatives de reconnexion
+  pairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT"]  # Paires tradées
+
+# Paramètres de risque
+risk:
+  max_position_size: 0.1                       # 10% du capital par trade
+  default_leverage: 3                          # Effet de levier par défaut
+  volatility_adjustment: true                  # Ajustement dynamique basé sur la volatilité
+
+# Journalisation
+logging:
+  level: "INFO"                                # Niveau de log (DEBUG, INFO, WARNING, ERROR)
+  file: "logs/trading.log"                     # Fichier de logs
+  max_size: "10MB"                             # Taille max avant rotation
+  backups: 5                                   # Nombre de fichiers de log à conserver
+
+# Paramètres de fallback
+fallback:
+  enable: true                                 # Activer le mode dégradé
+  simple_strategy: "SMA_50_200"                # Stratégie de fallback
+  manual_signals:                              # Signaux manuels
+    BTC/USDT: "NEUTRAL"
+    ETH/USDT: "NEUTRAL"

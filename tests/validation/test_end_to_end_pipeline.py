@@ -1,167 +1,122 @@
-# -*- coding: utf-8 -*-
-"""
-End-to-end test for the data pipeline.
+import unittest
+import numpy as np
+import time
+from unittest.mock import patch, MagicMock
+from workflows.trading_workflow import TradingWorkflow
 
-This test simulates the full process:
-1. Download raw data using api_manager.py.
-2. Process the raw data using data_pipeline.py.
-3. Validate the output Parquet file.
-"""
+class TestEndToEndPipeline(unittest.TestCase):
+    """Test complet du pipeline de trading, du modèle à l'exécution."""
+    
+    def setUp(self):
+        """Configuration des mocks pour le test end-to-end."""
+        self.config = {
+            'model': {
+                'weights_path': 'model/morningstar_v1.h5',
+                'num_technical_features': 38,
+                'llm_embedding_dim': 768
+            },
+            'api': {
+                'base_url': 'http://test-api',
+                'timeout': 5
+            }
+        }
+        
+        # Mock des prédictions du modèle
+        self.sample_predictions = {
+            'signal': np.array([[0.01, 0.02, 0.1, 0.67, 0.2]]),  # SELL
+            'volatility_quantiles': np.array([[0.05, 0.5, 0.95]]),
+            'volatility_regime': np.array([[0, 0, 1]]),  # High volatility
+            'market_regime': np.array([[0, 1, 0, 0]]),  # Bearish
+            'sl_tp': np.array([[0.98, 1.02]])  # SL 2%, TP 2%
+        }
+        
+    @patch('workflows.trading_workflow.APIManager')
+    @patch('workflows.trading_workflow.MorningstarModel')
+    def test_full_pipeline_execution(self, mock_model, mock_api):
+        """Teste un cycle complet de récupération prédiction et exécution."""
+        # Configuration des mocks
+        mock_model_instance = MagicMock()
+        mock_model_instance.predict.return_value = self.sample_predictions
+        mock_model.return_value = mock_model_instance
 
-import subprocess
-import os
-import pandas as pd
-import pytest
-import logging
-from pathlib import Path
+        # Données de marché mock
+        market_data = {
+            'technical': np.random.rand(38),  # format attendu
+            'sentiment_embeddings': np.random.rand(768)  # format attendu
+        }
+        
+        mock_api_instance = MagicMock()
+        mock_api_instance.get_market_data.return_value = market_data
+        mock_api.return_value = mock_api_instance
 
-# Configure logging for validation
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
-VALIDATION_LOG_FILE = LOG_DIR / "validation_log.txt"
+        # Exécution du workflow
+        workflow = TradingWorkflow(self.config)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(VALIDATION_LOG_FILE, mode='a'), # Append to the log file
-        logging.StreamHandler() # Also print to console
-    ]
-)
+        # Appel direct à execute_strategy pour tester le pipeline
+        result = workflow.execute_strategy(market_data)
 
-# --- Test Configuration ---
-TOKEN = "ETHUSDT"
-EXCHANGE = "binance" # Use a reliable exchange like Binance
-START_DATE = "2024-01-01" # Use a longer period to ensure enough data
-END_DATE = "2024-03-01"   # 2 months period
-TIMEFRAME = "1h" # Using 1h timeframe for potentially faster download/processing
+        # Vérifications
+        self.assertEqual(result['status'], 'success')
+        mock_model_instance.predict.assert_called_once()
+            
+    @patch('workflows.trading_workflow.APIManager')
+    @patch('workflows.trading_workflow.MorningstarModel')
+    def test_latency_measurement(self, mock_model, mock_api):
+        """Teste que la latence totale est acceptable."""
+        # Configuration des mocks avec temporisation
+        mock_model_instance = MagicMock()
+        mock_model_instance.predict.side_effect = lambda *args: (
+            time.sleep(0.1),
+            self.sample_predictions
+        )[1]
+        mock_model.return_value = mock_model_instance
+        
+        mock_api_instance = MagicMock()
+        mock_api_instance.get_market_data.side_effect = lambda: (
+            time.sleep(0.05),
+            {'technical': np.random.rand(1, 38), 'sentiment_embeddings': np.random.rand(1, 768)}
+        )[1]
+        mock_api.return_value = mock_api_instance
+        
+        # Mesure de performance
+        workflow = TradingWorkflow(self.config)
+        start_time = time.time()
+        workflow.execute_strategy({})
+        latency = time.time() - start_time
+        
+        # Vérification (latence < 200ms)
+        self.assertLess(latency, 0.2)
+        
+    @patch('workflows.trading_workflow.APIManager')
+    @patch('workflows.trading_workflow.MorningstarModel')
+    def test_error_recovery(self, mock_model, mock_api):
+        """Teste la reprise après erreur."""
+        mock_model_instance = MagicMock()
+        mock_model_instance.predict.side_effect = [
+            Exception("First error"),
+            self.sample_predictions  # Second call succeeds
+        ]
+        mock_model.return_value = mock_model_instance
+        
+        mock_api_instance = MagicMock()
+        mock_api.return_value = mock_api_instance
+        
+        workflow = TradingWorkflow(self.config)
+        
+        # Données de marché valides
+        market_data = {
+            'technical': np.random.rand(38),
+            'sentiment_embeddings': np.random.rand(768)
+        }
+        
+        # Premier appel échoue
+        result1 = workflow.execute_strategy(market_data)
+        self.assertEqual(result1['status'], 'error')
+        
+        # Deuxième appel réussit
+        result2 = workflow.execute_strategy(market_data)
+        self.assertEqual(result2['status'], 'success')
 
-RAW_DATA_DIR = Path("data/raw")
-PROCESSED_DATA_DIR = Path("data/processed")
-RAW_DATA_FILE = RAW_DATA_DIR / f"test_e2e_{TOKEN.lower()}_raw.csv"
-PROCESSED_DATA_FILE = PROCESSED_DATA_DIR / f"test_e2e_{TOKEN.lower()}_final.parquet"
-
-API_MANAGER_SCRIPT = Path("utils/api_manager.py")
-DATA_PIPELINE_SCRIPT = Path("data/pipelines/data_pipeline.py")
-
-EXPECTED_COLUMNS = 38 # As specified in the requirements
-
-# Clean up previous test files before running
-@pytest.fixture(scope="module", autouse=True)
-def cleanup_files():
-    """Remove test files before and after the test module runs."""
-    if RAW_DATA_FILE.exists():
-        RAW_DATA_FILE.unlink()
-        logging.info(f"Removed previous raw test file: {RAW_DATA_FILE}")
-    if PROCESSED_DATA_FILE.exists():
-        PROCESSED_DATA_FILE.unlink()
-        logging.info(f"Removed previous processed test file: {PROCESSED_DATA_FILE}")
-    yield # Test runs here
-    # Cleanup after test
-    if RAW_DATA_FILE.exists():
-        RAW_DATA_FILE.unlink()
-        logging.info(f"Cleaned up raw test file: {RAW_DATA_FILE}")
-    if PROCESSED_DATA_FILE.exists():
-        PROCESSED_DATA_FILE.unlink()
-        logging.info(f"Cleaned up processed test file: {PROCESSED_DATA_FILE}")
-
-
-def run_command(command: list, step_name: str) -> bool:
-    """Helper function to run a subprocess command and log results."""
-    logging.info(f"--- Running Step: {step_name} ---")
-    logging.info(f"Command: {' '.join(command)}")
-    try:
-        # Using shell=False is generally safer, command should be a list
-        result = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8')
-        logging.info(f"STDOUT:\n{result.stdout}")
-        if result.stderr:
-            logging.warning(f"STDERR:\n{result.stderr}") # Log stderr even on success as warnings
-        logging.info(f"--- Step '{step_name}' completed successfully ---")
-        return True
-    except subprocess.CalledProcessError as e:
-        # Log stdout/stderr specifically for CalledProcessError for better diagnosis
-        logging.error(f"!!! Step '{step_name}' failed with CalledProcessError !!!")
-        logging.error(f"Return Code: {e.returncode}")
-        # Ensure stdout and stderr are logged if they exist
-        stdout_content = e.stdout.strip() if e.stdout else "N/A"
-        stderr_content = e.stderr.strip() if e.stderr else "N/A"
-        logging.error(f"STDOUT:\n{stdout_content}")
-        logging.error(f"STDERR:\n{stderr_content}")
-        return False
-    except FileNotFoundError:
-        logging.error(f"!!! Step '{step_name}' failed: Script not found at {command[1]} !!!")
-        return False
-    except Exception as e:
-        # Catch any other unexpected errors during subprocess execution
-        logging.error(f"!!! An unexpected error occurred during step '{step_name}': {e} !!!")
-        # Log traceback for unexpected errors if possible (might require importing traceback)
-        # import traceback
-        # logging.error(traceback.format_exc())
-        return False
-
-
-def test_end_to_end_pipeline():
-    """
-    Tests the full data pipeline from raw data download to processed parquet file.
-    """
-    # Ensure directories exist
-    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    # --- Step 1: Download Raw Data ---
-    api_command = [
-        "python", str(API_MANAGER_SCRIPT),
-        "--token", TOKEN,
-        "--exchange", EXCHANGE,
-        "--start", START_DATE,
-        "--end", END_DATE,
-        "--timeframe", TIMEFRAME,
-        "--output", str(RAW_DATA_FILE)
-    ]
-    success = run_command(api_command, "Download Raw Data")
-    assert success, "Failed to download raw data."
-
-    # --- Step 2: Validate Raw Data File ---
-    logging.info("--- Running Step: Validate Raw Data File ---")
-    assert RAW_DATA_FILE.exists(), f"Raw data file not found: {RAW_DATA_FILE}"
-    assert RAW_DATA_FILE.stat().st_size > 0, f"Raw data file is empty: {RAW_DATA_FILE}"
-    logging.info(f"Raw data file '{RAW_DATA_FILE}' exists and is not empty.")
-    logging.info("--- Step 'Validate Raw Data File' completed successfully ---")
-
-
-    # --- Step 3: Run Data Processing Pipeline ---
-    # Note: Corrected arguments based on previous error message (--input, --output)
-    pipeline_command = [
-        "python", str(DATA_PIPELINE_SCRIPT),
-        "--input", str(RAW_DATA_FILE),
-        "--output", str(PROCESSED_DATA_FILE)
-    ]
-    success = run_command(pipeline_command, "Run Data Processing Pipeline")
-    assert success, "Failed to run the data processing pipeline."
-
-    # --- Step 4: Validate Processed Data File ---
-    logging.info("--- Running Step: Validate Processed Data File ---")
-    assert PROCESSED_DATA_FILE.exists(), f"Processed data file not found: {PROCESSED_DATA_FILE}"
-    assert PROCESSED_DATA_FILE.stat().st_size > 0, f"Processed data file is empty: {PROCESSED_DATA_FILE}"
-    logging.info(f"Processed data file '{PROCESSED_DATA_FILE}' exists and is not empty.")
-
-    # Load and validate shape
-    try:
-        df_processed = pd.read_parquet(PROCESSED_DATA_FILE)
-        logging.info(f"Successfully loaded processed data. Shape: {df_processed.shape}")
-        num_rows, num_cols = df_processed.shape
-        assert num_rows > 0, "Processed DataFrame has no rows."
-        assert num_cols == EXPECTED_COLUMNS, f"Expected {EXPECTED_COLUMNS} columns, but found {num_cols}."
-        logging.info(f"Processed DataFrame has {num_rows} rows and the expected {num_cols} columns.")
-        logging.info(f"Columns found: {df_processed.columns.tolist()}")
-
-    except Exception as e:
-        logging.error(f"!!! Failed to load or validate the processed Parquet file: {e} !!!")
-        pytest.fail(f"Failed to load or validate the processed Parquet file: {e}")
-
-    logging.info("--- Step 'Validate Processed Data File' completed successfully ---")
-    logging.info("====== End-to-End Pipeline Test Passed ======")
-
-
-# To run this test:
-# pytest tests/validation/test_end_to_end_pipeline.py
+if __name__ == '__main__':
+    import time
+    unittest.main()
