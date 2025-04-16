@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 
 # Configuration
-tokens = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "MATICUSDT"] # Utilisation de symboles standards pour Binance/Kucoin (à vérifier si besoin)
+tokens = ["ETHUSDT", "BTCUSDT", "BNBUSDT", "SOLUSDT", "MATICUSDT"] # Utilisation de symboles standards pour Binance/Kucoin (à vérifier si besoin)
 exchange = "kucoin" # Changé pour Kucoin
 timeframe = "15m"
 start = "2024-01-01" # Date historique valide
