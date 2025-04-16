@@ -175,7 +175,18 @@ def format_symbol(token: str, exchange_id: str) -> str:
             logger.info(f"Conversion du token '{token}' au format standard ccxt: '{formatted}'")
             return formatted.upper()
     # Si pas de quote trouvée, retourner tel quel (peut échouer sur l'exchange)
-    logger.warning(f"Impossible de déterminer le format standard pour '{token}'. Utilisation tel quel.")
+    logger.warning(f"Impossible de déterminer le format standard avec '/' pour '{token}'.")
+
+    # Cas spécifique pour KuCoin qui utilise souvent '-'
+    if exchange_id == 'kucoin' and '/' not in token:
+        for quote in possible_quotes:
+            if token.endswith(quote):
+                base = token[:-len(quote)]
+                formatted_dash = f"{base}-{quote}"
+                logger.info(f"Tentative avec le format KuCoin: '{formatted_dash}'")
+                return formatted_dash.upper()
+
+    logger.warning(f"Utilisation du token '{token.upper()}' tel quel.")
     return token.upper()
 
 def fetch_ohlcv_data(exchange_id: str, token: str, timeframe: str, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
@@ -214,7 +225,7 @@ def fetch_ohlcv_data(exchange_id: str, token: str, timeframe: str, start_date: s
     limit = exchange.safe_integer(exchange.limits.get('fetchOHLCV', {}), 'max', 1000)
     logger.info(f"Utilisation de la limite de fetchOHLCV: {limit}")
 
-    # Formater le symbole
+    # Formater le symbole initialement
     symbol = format_symbol(token, exchange_id)
 
     while since < end_msec:
@@ -263,7 +274,15 @@ def fetch_ohlcv_data(exchange_id: str, token: str, timeframe: str, start_date: s
              return None
         except ccxt.ExchangeError as e:
             # Erreur spécifique de l'exchange (ex: symbole invalide, etc.)
-            logger.error(f"Erreur de l'exchange {exchange_id} pour {symbol}: {e}. Arrêt.")
+            logger.error(f"Erreur de l'exchange {exchange_id} pour {symbol}: {e}.")
+            # Tentative de reformatage pour KuCoin si l'erreur est BadSymbol et le format est avec '/'
+            if exchange_id == 'kucoin' and isinstance(e, ccxt.BadSymbol) and '/' in symbol:
+                new_symbol = symbol.replace('/', '-')
+                logger.warning(f"Symbole '{symbol}' invalide pour KuCoin. Nouvelle tentative avec '{new_symbol}'...")
+                symbol = new_symbol # Mettre à jour le symbole pour la prochaine itération/tentative
+                continue # Recommencer la boucle while avec le nouveau symbole
+
+            logger.error(f"Arrêt de la récupération pour {symbol} suite à une erreur de l'exchange non récupérable.")
             return None # Erreur fatale pour cette requête
         except Exception as e:
             logger.exception(f"Erreur inattendue lors de la récupération des données pour {symbol}: {e}. Arrêt.") # Log stack trace

@@ -182,14 +182,18 @@ def save_processed_data(df: pd.DataFrame, output_path: str, format: str = 'parqu
             # Sauvegarder SANS l'index comme demandé
             df.to_parquet(output_path, index=False)
             logger.info(f"DataFrame sauvegardé avec succès au format Parquet (sans index): {output_path}")
+            return True # Indiquer le succès
         elif format == 'csv':
             df.to_csv(output_path, index=True)
             logger.info(f"DataFrame sauvegardé avec succès au format CSV: {output_path}")
+            return True # Indiquer le succès
         else:
             logger.error(f"Format de sauvegarde '{format}' non supporté. Utilisez 'parquet' ou 'csv'.")
+            return False # Ajout du return False ici aussi
 
     except Exception as e:
-        logger.error(f"Erreur lors de la sauvegarde du DataFrame vers {output_path}: {e}")
+        # Logger l'exception complète pour le débogage
+        logger.exception(f"Erreur lors de la sauvegarde du DataFrame vers {output_path}: {e}")
 
 # Exemple d'utilisation (à commenter ou supprimer pour l'intégration finale)
 if __name__ == '__main__':

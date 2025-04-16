@@ -28,6 +28,12 @@ print(f"Configuration: Exchange={exchange}, Timeframe={timeframe}, Période={sta
 print(f"Colonnes attendues en sortie: {expected_columns}")
 
 for token in tokens:
+    # --- Vérification Spécifique MATIC/KuCoin ---
+    if token == "MATICUSDT" and exchange == "kucoin":
+        print(f"\n=== Ignorer {token} pour {exchange} (symbole non supporté) ===")
+        total_tokens -= 1 # Décrémenter le total pour le calcul final du succès
+        continue # Passer au token suivant
+
     # Ajuster le nom du fichier pour utiliser le symbole de base (sans suffixes comme _SPBL)
     symbol_base = token.replace("USDT", "").replace("_SPBL", "").lower()
     raw_path = raw_dir / f"{symbol_base}_raw.csv"
@@ -81,10 +87,17 @@ for token in tokens:
     # Vérification de la sortie du pipeline
     if result_pipeline.returncode != 0 or not output_path.exists():
         print(f"❌ Échec pipeline {token}.")
+        # Afficher les détails de l'erreur
+        if not output_path.exists():
+             print(f"   Raison: Fichier {output_path} non créé après l'exécution du pipeline.")
+        else: # Si le fichier existe mais le script a retourné une erreur
+             print(f"   Raison: Le script data_pipeline.py a retourné un code d'erreur ({result_pipeline.returncode}).")
+
+        # Afficher stdout et stderr pour le débogage
+        if result_pipeline.stdout:
+            print(f"   Sortie standard (stdout) de data_pipeline.py:\n-------\n{result_pipeline.stdout.strip()}\n-------")
         if result_pipeline.stderr:
-            print(f"   Erreur: {result_pipeline.stderr.strip()}")
-        elif not output_path.exists():
-             print(f"   Erreur: Fichier {output_path} non créé.")
+            print(f"   Sortie d'erreur (stderr) de data_pipeline.py:\n-------\n{result_pipeline.stderr.strip()}\n-------")
         continue
     else:
         print(f"✅ Pipeline terminé.")

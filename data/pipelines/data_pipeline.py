@@ -51,15 +51,19 @@ def run_pipeline(input_path: str, output_path: str):
     Args:
         input_path (str): Chemin vers le fichier de données brutes (CSV).
         output_path (str): Chemin où sauvegarder le dataset final (Parquet).
+
+    Returns:
+        bool: True si le pipeline s'est terminé avec succès, False sinon.
     """
     logger.info(f"Début du pipeline de données pour le fichier: {input_path}")
+    pipeline_success = False # Flag pour suivre le succès
 
     # 1. Charger les données brutes
     logger.info("Étape 1: Chargement des données brutes...")
     df_raw = load_raw_data(input_path)
     if df_raw is None:
         logger.error("Échec du chargement des données brutes. Arrêt du pipeline.")
-        return
+        return False # Indiquer l'échec
     logger.info(f"Données brutes chargées. Shape: {df_raw.shape}")
 
     # 2. Nettoyer les données
@@ -77,10 +81,10 @@ def run_pipeline(input_path: str, output_path: str):
          logger.error("La fonction 'apply_feature_pipeline' n'est pas définie. Assurez-vous qu'elle existe dans utils/feature_engineering.py.")
          # Optionnel: Continuer sans features ou arrêter
          # df_features = df_clean # Continuer sans features
-         return # Arrêter
+         return False # Arrêter et indiquer l'échec
     except Exception as e:
         logger.error(f"Erreur lors de l'application du Feature Engineering: {e}")
-        return
+        return False # Indiquer l'échec
 
     # 4. Générer les Labels (Fonction de Dev C)
     logger.info("Étape 4: Génération des Labels...")
@@ -92,10 +96,10 @@ def run_pipeline(input_path: str, output_path: str):
          logger.error("La fonction 'build_labels' n'est pas définie. Assurez-vous qu'elle existe dans utils/labeling.py.")
          # Optionnel: Continuer sans labels ou arrêter
          # df_labeled = df_features # Continuer sans labels
-         return # Arrêter
+         return False # Arrêter et indiquer l'échec
     except Exception as e:
         logger.error(f"Erreur lors de la génération des Labels: {e}")
-        return
+        return False # Indiquer l'échec
 
     # 5. Validation finale du nombre de colonnes
     final_columns = len(df_labeled.columns)
@@ -107,9 +111,15 @@ def run_pipeline(input_path: str, output_path: str):
 
     # 6. Sauvegarder le dataset final
     logger.info(f"Étape 5: Sauvegarde du dataset final au format Parquet: {output_path}")
-    save_processed_data(df_labeled, output_path, format='parquet')
+    # Utiliser la fonction de data_preparation qui retourne un booléen
+    if save_processed_data(df_labeled, output_path, format='parquet'):
+        logger.info("Pipeline de données terminé avec succès.")
+        pipeline_success = True
+    else:
+        logger.error("Échec de la sauvegarde du dataset final.")
+        pipeline_success = False
 
-    logger.info("Pipeline de données terminé avec succès.")
+    return pipeline_success
 
 
 if __name__ == "__main__":
@@ -132,7 +142,15 @@ if __name__ == "__main__":
     # Vérifier si le fichier d'entrée existe
     if not os.path.exists(args.input):
         logger.error(f"Le fichier d'entrée spécifié n'existe pas: {args.input}")
-        sys.exit(1)
+        sys.exit(1) # Exit code 1 si input file missing
 
-    # Exécuter le pipeline
-    run_pipeline(args.input, args.output)
+    # Exécuter le pipeline et gérer le code de sortie
+    try:
+        success = run_pipeline(args.input, args.output)
+        if success:
+            sys.exit(0) # Exit code 0 si succès
+        else:
+            sys.exit(1) # Exit code 1 si échec signalé par run_pipeline
+    except Exception as e:
+        logger.exception(f"Exception inattendue non interceptée dans run_pipeline: {e}")
+        sys.exit(1) # Exit code 1 en cas d'exception imprévue
