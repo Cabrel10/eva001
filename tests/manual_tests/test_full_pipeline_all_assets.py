@@ -51,12 +51,19 @@ for token in tokens:
     # Vérification du téléchargement
     if result_download.returncode != 0 or not raw_path.exists() or raw_path.stat().st_size < 1000: # Seuil de taille bas pour être sûr qu'il y a des données
         print(f"❌ Échec téléchargement {token}.")
-        if result_download.stderr:
-            print(f"   Erreur: {result_download.stderr.strip()}")
-        elif not raw_path.exists():
-            print(f"   Erreur: Fichier {raw_path} non créé.")
+        # Afficher les détails de l'erreur
+        if not raw_path.exists():
+            print(f"   Raison: Fichier {raw_path} non créé.")
         elif raw_path.stat().st_size < 1000:
-             print(f"   Erreur: Fichier {raw_path} semble trop petit ({raw_path.stat().st_size} bytes).")
+             print(f"   Raison: Fichier {raw_path} semble trop petit ({raw_path.stat().st_size} bytes).")
+        else: # Si le fichier existe mais le script a retourné une erreur
+             print(f"   Raison: Le script api_manager.py a retourné un code d'erreur ({result_download.returncode}).")
+
+        # Afficher stdout et stderr pour le débogage
+        if result_download.stdout:
+            print(f"   Sortie standard (stdout) de api_manager.py:\n-------\n{result_download.stdout.strip()}\n-------")
+        if result_download.stderr:
+            print(f"   Sortie d'erreur (stderr) de api_manager.py:\n-------\n{result_download.stderr.strip()}\n-------")
         continue
     else:
         print(f"✅ Données brutes téléchargées ({raw_path.stat().st_size} bytes).")
