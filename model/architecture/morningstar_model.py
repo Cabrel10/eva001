@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import logging
 from typing import Dict, Tuple, Union
-from .enhanced_hybrid_model import MorningstarHybridModel
+from .enhanced_hybrid_model import build_enhanced_hybrid_model
 
 class MorningstarModel:
     """Wrapper pour intégrer le modèle hybride dans le workflow de trading."""
@@ -15,7 +15,6 @@ class MorningstarModel:
             model_config: Configuration du modèle (peut être chargée depuis un fichier YAML)
         """
         self.logger = logging.getLogger('MorningstarModel')
-        self.model = None
         self.config = model_config or {
             'num_technical_features': 38,
             'llm_embedding_dim': 768,
@@ -23,16 +22,23 @@ class MorningstarModel:
             'num_volatility_regimes': 3,
             'num_market_regimes': 4
         }
+        self.model = None
+        self.initialize_model()  # Initialisation immédiate
         
     def initialize_model(self) -> None:
         """Initialise l'architecture du modèle."""
         try:
-            builder = MorningstarHybridModel(**self.config)
-            self.model = builder.build_model()
+            # Construction directe via la fonction wrapper
+            self.model = build_enhanced_hybrid_model(
+                input_shape=(self.config['num_technical_features'],),
+                num_trading_classes=self.config['num_signal_classes'],
+                num_regime_classes=self.config['num_market_regimes']
+            )
             self.logger.info("Modèle initialisé avec succès")
+            self.logger.info(f"Architecture du modèle:\n{self.get_model_summary()}")
         except Exception as e:
             self.logger.error(f"Erreur lors de l'initialisation du modèle: {str(e)}")
-            raise
+            raise RuntimeError(f"Échec de l'initialisation: {str(e)}") from e
             
     def predict(self, 
                technical_data: np.ndarray,
@@ -45,53 +51,39 @@ class MorningstarModel:
             llm_embeddings: Embeddings LLM (shape: [batch_size, 768])
             
         Returns:
-            Dictionnaire contenant toutes les prédictions
+            Dictionnaire contenant toutes les prédictions avec les clés:
+            - 'signal' (shape: [batch_size, 5])
+            - 'volatility_quantiles' (shape: [batch_size, 3]) 
+            - 'volatility_regime' (shape: [batch_size, 3])
+            - 'market_regime' (shape: [batch_size, num_regime_classes])
+            - 'sl_tp' (shape: [batch_size, 2])
         """
         if self.model is None:
             raise ValueError("Le modèle n'a pas été initialisé")
             
         try:
-            # Vérification simple des shapes d'entrée (peut être plus robuste)
+            # Validation stricte des shapes d'entrée
             if technical_data.shape[1] != self.config['num_technical_features']:
                 raise ValueError(f"Shape technique incorrecte: attendu {self.config['num_technical_features']}, reçu {technical_data.shape[1]}")
             if llm_embeddings.shape[1] != self.config['llm_embedding_dim']:
-                 raise ValueError(f"Shape LLM incorrecte: attendu {self.config['llm_embedding_dim']}, reçu {llm_embeddings.shape[1]}")
+                raise ValueError(f"Shape LLM incorrecte: attendu {self.config['llm_embedding_dim']}, reçu {llm_embeddings.shape[1]}")
 
-            predictions_list = self.model.predict([technical_data, llm_embeddings])
+            # Prédiction avec les deux entrées
+            predictions = self.model.predict([technical_data, llm_embeddings])
             
-            # Vérification de base du nombre de sorties
-            if len(predictions_list) != 5:
-                 raise ValueError(f"Nombre de sorties inattendu: attendu 5, reçu {len(predictions_list)}")
-
-            # Structuration de la sortie comme demandé
-            result_dict = {
-                'signal': predictions_list[0],
-                'volatility_quantiles': predictions_list[1],
-                'volatility_regime': predictions_list[2],
-                'market_regime': predictions_list[3],
-                'sl_tp': predictions_list[4]
-            }
-            
-            # Vérification des shapes de sortie (exemple pour le signal)
-            expected_signal_shape = (technical_data.shape[0], self.config['num_signal_classes'])
-            if result_dict['signal'].shape != expected_signal_shape:
-                 raise ValueError(f"Shape de sortie signal incorrecte: attendu {expected_signal_shape}, reçu {result_dict['signal'].shape}")
-                 
-            # Ajouter d'autres vérifications de shape si nécessaire...
-
-            self.logger.info(f"Prédiction réussie pour {technical_data.shape[0]} échantillons.")
+            # Mapping des sorties selon les noms définis dans le modèle
+            self.logger.info(f"Prédiction réussie pour {technical_data.shape[0]} échantillons")
             return {
-                'status': 'success',
-                'result': result_dict
+                'signal': predictions[0],
+                'volatility_quantiles': predictions[1],
+                'volatility_regime': predictions[2], 
+                'market_regime': predictions[3],
+                'sl_tp': predictions[4]
             }
             
         except Exception as e:
             self.logger.error(f"Erreur lors de la prédiction: {str(e)}")
-            # Retourne un dictionnaire d'erreur au lieu de lever l'exception directement
-            return {
-                'status': 'error',
-                'message': str(e)
-            }
+            raise  # Relance l'exception originale
             
     def save_weights(self, filepath: str) -> None:
         """Sauvegarde les poids du modèle."""
