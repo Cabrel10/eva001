@@ -1,3 +1,17 @@
+# Configuration LLM
+llm:
+  google_api_key: ""  # À remplir dans secrets.env
+  openrouter_api_key: ""  # À remplir dans secrets.env
+  cache_ttl: 86400  # 24h en secondes
+  fallback_enabled: true
+  default_model: "google/gemini-pro"
+
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+  cache_ttl: 3600  # 1h en secondes
+
 # Configuration du modèle Morningstar
 model:
   weights_path: "model/morningstar_weights.h5"  # Chemin vers les poids du modèle entraîné
